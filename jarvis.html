@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<style>
+  :root {
+    --cyan: #00d4ff;
+    --cyan-dim: #005f75;
+    --red: #ff3c3c;
+    --gold: #f0a500;
+    --green: #00ff88;
+    --bg: #030a10;
+    --panel: rgba(0, 212, 255, 0.04);
+    --border: rgba(0, 212, 255, 0.2);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--cyan);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.015) 2px, rgba(0,212,255,0.015) 4px);
+    pointer-events: none; z-index: 100;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%);
+    pointer-events: none; z-index: 99;
+  }
+  canvas#bg { position: fixed; inset: 0; z-index: 0; }
+
+  .hud {
+    position: relative; z-index: 10;
+    width: 100vw; height: 100vh;
+    display: grid;
+    grid-template-columns: 260px 1fr 260px;
+    grid-template-rows: 60px 1fr 180px 60px;
+    gap: 8px; padding: 12px;
+  }
+
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border); padding: 0 12px;
+  }
+  .topbar-logo {
+    font-family: 'Rajdhani', sans-serif; font-size: 22px; font-weight: 700;
+    letter-spacing: 8px; color: var(--cyan); text-shadow: 0 0 20px var(--cyan);
+  }
+  .topbar-status { display: flex; gap: 24px; font-size: 11px; color: rgba(0,212,255,0.5); }
+  .topbar-status span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); animation: blink 1.8s infinite; }
+  .dot.red { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .dot.gold { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+  .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .panel::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent); opacity: 0.6;
+  }
+  .panel-title {
+    font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 600;
+    letter-spacing: 3px; color: rgba(0,212,255,0.5); padding: 8px 12px 4px;
+    border-bottom: 1px solid rgba(0,212,255,0.08);
+  }
+
+  .left { grid-row: 2 / 4; display: flex; flex-direction: column; gap: 8px; }
+  .sys-panel { flex: 1; }
+  .sys-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; border-bottom: 1px solid rgba(0,212,255,0.06); font-size: 11px; }
+  .sys-row-label { color: rgba(0,212,255,0.45); }
+  .sys-row-val { color: var(--cyan); font-weight: bold; }
+  .bar-wrap { padding: 5px 12px 10px; }
+  .bar-label { font-size: 10px; color: rgba(0,212,255,0.4); display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .bar-track { height: 3px; background: rgba(0,212,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--cyan-dim), var(--cyan)); box-shadow: 0 0 6px var(--cyan); border-radius: 2px; transition: width 0.8s ease; }
+
+  .cmd-log { flex: 1.5; }
+  .log-list { padding: 8px 12px; font-size: 11px; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow: hidden; }
+  .log-item { display: flex; gap: 8px; animation: fadeIn 0.3s forwards; }
+  .log-time { color: rgba(0,212,255,0.3); flex-shrink: 0; }
+  .log-text { color: rgba(0,212,255,0.7); }
+  .log-text.success { color: var(--green); }
+  .log-text.warn { color: var(--gold); }
+  .log-text.error { color: var(--red); }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+
+  .center-viz {
+    grid-column: 2; grid-row: 2;
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .orb-wrap { position: relative; width: 240px; height: 240px; display: flex; align-items: center; justify-content: center; }
+  .ring { position: absolute; border-radius: 50%; border: 1px solid var(--cyan); animation: spinRing 8s linear infinite; }
+  .ring:nth-child(1) { width: 240px; height: 240px; opacity: 0.12; }
+  .ring:nth-child(2) { width: 210px; height: 210px; opacity: 0.18; animation-duration: 6s; animation-direction: reverse; border-style: dashed; }
+  .ring:nth-child(3) { width: 180px; height: 180px; opacity: 0.25; animation-duration: 10s; }
+  @keyframes spinRing { to { transform: rotate(360deg); } }
+
+  .orb {
+    width: 120px; height: 120px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, rgba(0,212,255,0.5), rgba(0,40,60,0.9) 70%);
+    box-shadow: 0 0 30px rgba(0,212,255,0.4), 0 0 60px rgba(0,212,255,0.15), inset 0 0 20px rgba(0,212,255,0.2);
+    position: relative; z-index: 2; cursor: pointer; transition: all 0.3s;
+  }
+  .orb:hover { box-shadow: 0 0 50px rgba(0,212,255,0.7), 0 0 100px rgba(0,212,255,0.3), inset 0 0 30px rgba(0,212,255,0.4); transform: scale(1.05); }
+  .orb.listening { animation: pulseOrb 1s ease-in-out infinite; background: radial-gradient(circle at 35% 35%, rgba(0,255,136,0.5), rgba(0,40,60,0.9) 70%); box-shadow: 0 0 60px rgba(0,255,136,0.7), 0 0 120px rgba(0,255,136,0.3), inset 0 0 40px rgba(0,255,136,0.4); }
+  @keyframes pulseOrb { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+
+  .orb-label { position: absolute; bottom: -32px; left: 50%; transform: translateX(-50%); font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 4px; color: rgba(0,212,255,0.6); white-space: nowrap; }
+
+  .center-wave { grid-column: 2; grid-row: 3; display: flex; flex-direction: column; overflow: hidden; }
+  .wave-canvas-wrap { flex: 1; display: flex; align-items: center; padding: 8px 16px; }
+  canvas#wave { width: 100%; height: 80px; }
+  .transcript-box { padding: 8px 16px 12px; border-top: 1px solid rgba(0,212,255,0.08); min-height: 56px; }
+  .transcript-label { font-size: 10px; color: rgba(0,212,255,0.35); letter-spacing: 2px; margin-bottom: 4px; }
+  .transcript-text { font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 600; color: var(--cyan); text-shadow: 0 0 10px rgba(0,212,255,0.5); min-height: 24px; letter-spacing: 1px; }
+
+  .right { grid-row: 2 / 4; display: flex; flex-direction: column; gap: 8px; }
+  .cmd-grid { flex: 1; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .cmd-btn {
+    border: 1px solid rgba(0,212,255,0.2); background: rgba(0,212,255,0.04);
+    color: rgba(0,212,255,0.7); font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    padding: 8px 12px; cursor: pointer; text-align: left; transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px; position: relative; overflow: hidden;
+  }
+  .cmd-btn::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); transform: scaleY(0); transition: transform 0.2s; }
+  .cmd-btn:hover { background: rgba(0,212,255,0.1); color: var(--cyan); border-color: rgba(0,212,255,0.5); }
+  .cmd-btn:hover::before { transform: scaleY(1); }
+  .cmd-btn:active { background: rgba(0,212,255,0.25); transform: scale(0.98); }
+  .cmd-icon { font-size: 14px; }
+
+  .apps-panel { flex: 1.2; }
+  .app-grid { padding: 8px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .app-item { border: 1px solid rgba(0,212,255,0.15); background: rgba(0,212,255,0.03); padding: 8px; font-size: 10px; color: rgba(0,212,255,0.5); cursor: pointer; transition: all 0.2s; text-align: center; }
+  .app-item:hover { background: rgba(0,212,255,0.08); color: var(--cyan); border-color: rgba(0,212,255,0.4); }
+  .app-item:active { background: rgba(0,212,255,0.2); }
+  .app-name { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600; margin-top: 2px; }
+
+  .bottombar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid var(--border); padding: 0 16px;
+    font-size: 10px; color: rgba(0,212,255,0.3); letter-spacing: 2px;
+  }
+
+  .mic-btn {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 20;
+    background: rgba(0,212,255,0.1); border: 1px solid var(--cyan); color: var(--cyan);
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 4px;
+    padding: 12px 32px; cursor: pointer; transition: all 0.3s;
+    box-shadow: 0 0 20px rgba(0,212,255,0.2);
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  }
+  .mic-btn:hover { background: rgba(0,212,255,0.25); box-shadow: 0 0 40px rgba(0,212,255,0.5); }
+  .mic-btn.active { background: rgba(0,255,136,0.15); border-color: var(--green); color: var(--green); box-shadow: 0 0 60px rgba(0,255,136,0.5); animation: pulsebtn 1s infinite; }
+  @keyframes pulsebtn { 0%,100%{box-shadow:0 0 40px rgba(0,255,136,0.4)} 50%{box-shadow:0 0 80px rgba(0,255,136,0.8)} }
+
+  .corner { position: fixed; width: 24px; height: 24px; z-index: 50; pointer-events: none; }
+  .corner-tl { top:8px;left:8px; border-top:2px solid var(--cyan);border-left:2px solid var(--cyan); }
+  .corner-tr { top:8px;right:8px; border-top:2px solid var(--cyan);border-right:2px solid var(--cyan); }
+  .corner-bl { bottom:8px;left:8px; border-bottom:2px solid var(--cyan);border-left:2px solid var(--cyan); }
+  .corner-br { bottom:8px;right:8px; border-bottom:2px solid var(--cyan);border-right:2px solid var(--cyan); }
+
+  #inputBar {
+    position: fixed; bottom: 130px; left: 50%; transform: translateX(-50%);
+    z-index: 20; display: flex; gap: 8px; align-items: center;
+  }
+  #cmdInput {
+    background: rgba(0,212,255,0.06); border: 1px solid rgba(0,212,255,0.3);
+    color: var(--cyan); font-family: 'Share Tech Mono', monospace; font-size: 13px;
+    padding: 8px 16px; width: 320px; outline: none;
+    clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  }
+  #cmdInput::placeholder { color: rgba(0,212,255,0.3); }
+  #cmdInput:focus { border-color: var(--cyan); box-shadow: 0 0 15px rgba(0,212,255,0.3); }
+  #sendBtn {
+    background: rgba(0,212,255,0.1); border: 1px solid var(--cyan); color: var(--cyan);
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 2px;
+    padding: 8px 20px; cursor: pointer; transition: all 0.2s;
+    clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  }
+  #sendBtn:hover { background: rgba(0,212,255,0.25); }
+</style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<div class="hud">
+  <div class="topbar">
+    <div class="topbar-logo">J·A·R·V·I·S</div>
+    <div class="topbar-status">
+      <span><div class="dot"></div> СИСТЕМА АКТИВНА</span>
+      <span><div class="dot gold"></div> РАСПОЗНАВАНИЕ: RU</span>
+      <span id="micStatus"><div class="dot red"></div> МИКРОФОН ОТКЛ</span>
+      <span id="clock"></span>
+    </div>
+  </div>
+
+  <div class="left">
+    <div class="panel sys-panel">
+      <div class="panel-title">// СТАТУС СИСТЕМЫ</div>
+      <div class="sys-row"><span class="sys-row-label">СТАТУС</span><span class="sys-row-val">АКТИВЕН</span></div>
+      <div class="sys-row"><span class="sys-row-label">ДВИЖОК</span><span class="sys-row-val">Google SR</span></div>
+      <div class="sys-row"><span class="sys-row-label">ЯЗЫК</span><span class="sys-row-val">RU-RU</span></div>
+      <div class="sys-row"><span class="sys-row-label">TTS</span><span class="sys-row-val">pyttsx3</span></div>
+      <div class="sys-row"><span class="sys-row-label">КОМАНД</span><span class="sys-row-val" id="cmdCount">0</span></div>
+      <div class="bar-wrap">
+        <div class="bar-label"><span>ЗАГРУЗКА ЦП</span><span id="cpuVal">--</span></div>
+        <div class="bar-track"><div class="bar-fill" id="cpuBar" style="width:30%"></div></div>
+        <div class="bar-label"><span>ПАМЯТЬ</span><span id="memVal">--</span></div>
+        <div class="bar-track"><div class="bar-fill" id="memBar" style="width:55%"></div></div>
+        <div class="bar-label"><span>АУДИО</span><span id="audVal">0%</span></div>
+        <div class="bar-track"><div class="bar-fill" id="audBar" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div class="panel cmd-log">
+      <div class="panel-title">// ЖУРНАЛ КОМАНД</div>
+      <div class="log-list" id="logList">
+        <div class="log-item"><span class="log-time">00:00</span><span class="log-text success">СИСТЕМА ЗАПУЩЕНА</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="center-viz panel">
+    <div class="panel-title" style="position:absolute;top:0;left:0;right:0">// НЕЙРОННЫЙ ИНТЕРФЕЙС</div>
+    <div class="orb-wrap">
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="orb" id="orb" onclick="toggleListen()"></div>
+      <div class="orb-label" id="orbLabel">РЕЖИМ ОЖИДАНИЯ</div>
+    </div>
+  </div>
+
+  <div class="center-wave panel">
+    <div class="panel-title">// АУДИО АНАЛИЗ</div>
+    <div class="wave-canvas-wrap"><canvas id="wave"></canvas></div>
+    <div class="transcript-box">
+      <div class="transcript-label">РАСПОЗНАННЫЙ ТЕКСТ</div>
+      <div class="transcript-text" id="transcript">Скажите "ДЖАРВИС" для активации</div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="panel" style="flex:1">
+      <div class="panel-title">// БЫСТРЫЕ КОМАНДЫ</div>
+      <div class="cmd-grid">
+        <button class="cmd-btn" onclick="runCmd('открой chrome')"><span class="cmd-icon">▶</span>открой chrome</button>
+        <button class="cmd-btn" onclick="runCmd('открой notepad')"><span class="cmd-icon">▶</span>открой notepad</button>
+        <button class="cmd-btn" onclick="runCmd('закрой notepad')"><span class="cmd-icon">■</span>закрой notepad</button>
+        <button class="cmd-btn" onclick="runCmd('нажми вниз 5')"><span class="cmd-icon">⌨</span>нажми вниз 5</button>
+        <button class="cmd-btn" onclick="runCmd('нажми ctrl z')"><span class="cmd-icon">↩</span>нажми ctrl z</button>
+        <button class="cmd-btn" onclick="runCmd('привет')"><span class="cmd-icon">◈</span>привет</button>
+      </div>
+    </div>
+    <div class="panel apps-panel">
+      <div class="panel-title">// ПРИЛОЖЕНИЯ</div>
+      <div class="app-grid">
+        <div class="app-item" onclick="runCmd('открой chrome')"><div>🌐</div><div class="app-name">Chrome</div></div>
+        <div class="app-item" onclick="runCmd('открой notepad')"><div>📝</div><div class="app-name">Notepad</div></div>
+        <div class="app-item" onclick="runCmd('открой explorer')"><div>📁</div><div class="app-name">Explorer</div></div>
+        <div class="app-item" onclick="runCmd('открой calc')"><div>🔢</div><div class="app-name">Calc</div></div>
+        <div class="app-item" onclick="runCmd('открой discord')"><div>💬</div><div class="app-name">Discord</div></div>
+        <div class="app-item" onclick="runCmd('открой steam')"><div>🎮</div><div class="app-name">Steam</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottombar">
+    <span>JARVIS v2.0 // ГОЛОСОВОЙ АССИСТЕНТ</span>
+    <span id="statusText">ОЖИДАНИЕ</span>
+    <span>ДВИЖОК: GOOGLE SPEECH API</span>
+  </div>
+</div>
+
+<!-- Ввод текстовых команд -->
+<div id="inputBar">
+  <input id="cmdInput" type="text" placeholder="Введите команду вручную..." onkeydown="if(event.key==='Enter') sendText()">
+  <button id="sendBtn" onclick="sendText()">ОТПРАВИТЬ</button>
+</div>
+
+<button class="mic-btn" id="micBtn" onclick="toggleListen()">◉ АКТИВИРОВАТЬ</button>
+
+<script>
+// ── Clock ──
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('ru-RU');
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ── Background canvas ──
+const bgCanvas = document.getElementById('bg');
+const bgCtx = bgCanvas.getContext('2d');
+let particles = [];
+function initBg() {
+  bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+  particles = Array.from({length:80}, () => ({
+    x: Math.random()*bgCanvas.width, y: Math.random()*bgCanvas.height,
+    vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3,
+    size: Math.random()*1.5+0.3, alpha: Math.random()*0.4+0.1
+  }));
+}
+function drawBg() {
+  bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+  bgCtx.strokeStyle='rgba(0,212,255,0.04)'; bgCtx.lineWidth=1;
+  for(let x=0;x<bgCanvas.width;x+=60){bgCtx.beginPath();bgCtx.moveTo(x,0);bgCtx.lineTo(x,bgCanvas.height);bgCtx.stroke();}
+  for(let y=0;y<bgCanvas.height;y+=60){bgCtx.beginPath();bgCtx.moveTo(0,y);bgCtx.lineTo(bgCanvas.width,y);bgCtx.stroke();}
+  particles.forEach(p => {
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0||p.x>bgCanvas.width)p.vx*=-1;
+    if(p.y<0||p.y>bgCanvas.height)p.vy*=-1;
+    bgCtx.beginPath(); bgCtx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    bgCtx.fillStyle=`rgba(0,212,255,${p.alpha})`; bgCtx.fill();
+  });
+  requestAnimationFrame(drawBg);
+}
+initBg(); drawBg();
+window.addEventListener('resize', initBg);
+
+// ── Waveform ──
+const waveCanvas = document.getElementById('wave');
+const waveCtx = waveCanvas.getContext('2d');
+let isListening = false; let wavePhase = 0;
+function drawWave() {
+  const W = waveCanvas.offsetWidth; const H = 80;
+  waveCanvas.width = W; waveCanvas.height = H;
+  waveCtx.clearRect(0,0,W,H);
+  const amp = isListening ? 20+Math.random()*15 : 4;
+  const freq = isListening ? 3 : 1.5;
+  waveCtx.beginPath();
+  waveCtx.strokeStyle = isListening ? 'rgba(0,255,136,0.9)' : 'rgba(0,212,255,0.35)';
+  waveCtx.lineWidth = 1.5; waveCtx.shadowColor = isListening ? '#00ff88' : '#00d4ff'; waveCtx.shadowBlur = isListening ? 10 : 4;
+  for(let x=0;x<W;x++){
+    const t=(x/W)*Math.PI*2*freq+wavePhase;
+    const noise=isListening?(Math.random()-0.5)*8:0;
+    const y=H/2+Math.sin(t)*amp+Math.sin(t*2.3)*amp*0.4+noise;
+    x===0?waveCtx.moveTo(x,y):waveCtx.lineTo(x,y);
+  }
+  waveCtx.stroke();
+  wavePhase += isListening ? 0.08 : 0.02;
+  requestAnimationFrame(drawWave);
+}
+drawWave();
+
+// Fake sys bars
+setInterval(() => {
+  const cpu = 25+Math.random()*30; const mem = 55+Math.random()*15;
+  const aud = isListening ? 60+Math.random()*40 : Math.random()*5;
+  document.getElementById('cpuVal').textContent=cpu.toFixed(0)+'%';
+  document.getElementById('cpuBar').style.width=cpu+'%';
+  document.getElementById('memVal').textContent=mem.toFixed(0)+'%';
+  document.getElementById('memBar').style.width=mem+'%';
+  document.getElementById('audVal').textContent=aud.toFixed(0)+'%';
+  document.getElementById('audBar').style.width=aud+'%';
+}, 1200);
+
+// ── Лог ──
+let cmdCount = 0;
+function addLog(text, type) {
+  const list = document.getElementById('logList');
+  const now = new Date();
+  const time = now.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const item = document.createElement('div');
+  item.className='log-item';
+  item.innerHTML=`<span class="log-time">${time}</span><span class="log-text ${type}">${text}</span>`;
+  list.insertBefore(item, list.firstChild);
+  while(list.children.length > 10) list.removeChild(list.lastChild);
+  if(type==='success') { cmdCount++; document.getElementById('cmdCount').textContent=cmdCount; }
+}
+
+function setTranscript(text) {
+  document.getElementById('transcript').textContent = text;
+}
+
+function setStatus(active) {
+  isListening = active;
+  const orb = document.getElementById('orb');
+  const micBtn = document.getElementById('micBtn');
+  const micStatus = document.getElementById('micStatus');
+  const orbLabel = document.getElementById('orbLabel');
+  const statusText = document.getElementById('statusText');
+  if(active) {
+    orb.classList.add('listening');
+    micBtn.classList.add('active');
+    micBtn.textContent = '◉ СЛУШАЮ...';
+    micStatus.innerHTML = '<div class="dot green"></div> МИКРОФОН ВКЛ';
+    orbLabel.textContent = 'СЛУШАЮ...';
+    statusText.textContent = 'АКТИВЕН';
+  } else {
+    orb.classList.remove('listening');
+    micBtn.classList.remove('active');
+    micBtn.textContent = '◉ АКТИВИРОВАТЬ';
+    micStatus.innerHTML = '<div class="dot red"></div> МИКРОФОН ОТКЛ';
+    orbLabel.textContent = 'РЕЖИМ ОЖИДАНИЯ';
+    statusText.textContent = 'ОЖИДАНИЕ';
+  }
+}
+
+// ── WebChannel bridge ──
+let bridge = null;
+new QWebChannel(qt.webChannelTransport, function(channel) {
+  bridge = channel.objects.bridge;
+  bridge.log_signal.connect(function(text, type) { addLog(text, type); });
+  bridge.transcript_signal.connect(function(text) { setTranscript(text); });
+  bridge.status_signal.connect(function(active) { setStatus(active); });
+  addLog('Соединение с Python установлено', 'success');
+});
+
+function toggleListen() {
+  if(bridge) bridge.toggle_listen();
+  else addLog('Ошибка: мост не инициализирован', 'error');
+}
+
+function runCmd(cmd) {
+  if(bridge) {
+    setTranscript(cmd);
+    addLog(`Команда: "${cmd}"`, '');
+    bridge.run_command(cmd);
+  } else {
+    addLog('Ошибка: мост не инициализирован', 'error');
+  }
+}
+
+function sendText() {
+  const input = document.getElementById('cmdInput');
+  const val = input.value.trim();
+  if(val) { runCmd(val); input.value=''; }
+}
+</script>
+</body>
+</html>
