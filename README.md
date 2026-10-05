@@ -14,4 +14,7 @@ cat models/whisper/model.bin.part* > models/whisper/model.bin
 ```
 
 after successful assembly, you can safely delete the .part* files to save space.
-EOF
+
+## note: 
+
+the frontend was built using chatGPT
