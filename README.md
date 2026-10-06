@@ -19,7 +19,7 @@ after successful assembly, you can safely delete the .part* files to save space
 
 to add an alias (a custom name for an application) or a custom command (a bash command executed when a specific phrase or word is spoken), use this template:
 
-phrase:what jarvis receives
+`phrase:what jarvis receives`
 
 then, add it to the `support_files/aliases.txt` or `support_files/custom_commands.txt` file, respectively
 
