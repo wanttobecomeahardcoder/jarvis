@@ -489,7 +489,7 @@ class JarvisFrontend(tk.Tk):
             fg=TEXT,
             font=(
                 'DejaVu Sans',
-                17,
+                15,
                 'bold',
             ),
             justify='center',
