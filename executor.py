@@ -113,6 +113,18 @@ def get_aliases() -> list:
     return aliases
 
 # ---------------------------------------------------------------------
+# словарь
+# ---------------------------------------------------------------------
+
+# слово:вывод, слово будет проверяться в блоке ввода и выводиться вывод
+def get_dictionary() -> list:
+    dictionary = []
+    with (open(path + '/support_files/dictionary.txt', 'r', encoding='utf-8') as f):
+        for i in f:
+            dictionary += [[i.split(':')[0], i.split(':')[1]]]
+    return dictionary
+    
+# ---------------------------------------------------------------------
 # кастомные команды
 # ---------------------------------------------------------------------
 
@@ -141,6 +153,13 @@ def jarvis(text):
             .replace('Веди', '')
             .replace('веди', '')
         )
+        
+        for pair in dictionary:
+            if pair[0] == text.replace(' ', '').replace(',', '').replace('.', ''):
+                run(['wtype', pair[1], check=True)
+                speak(f'ввёл текст прикреплённый к {pair[0]} в словаре, сэр')
+                break
+        
         run(['wtype', text], check=True)
         speak('как скажите, сэр')
 
