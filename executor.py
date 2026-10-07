@@ -159,9 +159,9 @@ def jarvis(text):
                 run(['wtype', pair[1], check=True)
                 speak(f'ввёл текст прикреплённый к {pair[0]} в словаре, сэр')
                 break
-        
-        run(['wtype', text], check=True)
-        speak('как скажите, сэр')
+        else:
+            run(['wtype', text], check=True)
+            speak('как скажите, сэр')
 
     # ---------------------------------------------------------------------
     # открытие
