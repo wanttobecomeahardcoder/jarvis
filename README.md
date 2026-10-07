@@ -15,13 +15,13 @@ cat models/whisper/model.bin.part* > models/whisper/model.bin
 
 after successful assembly, you can safely delete the .part* files to save space
 
-## aliases and custom commands:
+## aliases, dictionary and custom commands:
 
-to add an alias (a custom name for an application) or a custom command (a bash command executed when a specific phrase or word is spoken), use this template:
+to add an alias (a custom name for an application), dictionary entry (a keyword linked to a specific text) or a custom command (a bash command executed when a specific phrase or word is spoken), use this template:
 
 `phrase:what jarvis receives`
 
-then, add it to the `support_files/aliases.txt` or `support_files/custom_commands.txt` file, respectively
+then, add it to the `support_files/aliases.txt`, `support_files/dictionary.txt` or `support_files/custom_commands.txt` file, respectively
 
 ## note: 
 
