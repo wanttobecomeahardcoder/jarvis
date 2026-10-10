@@ -109,7 +109,7 @@ def get_aliases() -> list:
     aliases = []
     with (open(path + '/support_files/aliases.txt', 'r', encoding='utf-8') as f):
         for i in f:
-            aliases += [[i.split(':')[0], i.split(':')[1]]]
+            aliases += [[i.split(' : ')[0], i.split(' : ')[1]]]
     return aliases
 
 # ---------------------------------------------------------------------
@@ -121,7 +121,7 @@ def get_dictionary() -> list:
     dictionary = []
     with (open(path + '/support_files/dictionary.txt', 'r', encoding='utf-8') as f):
         for i in f:
-            dictionary += [[i.split(':')[0], i.split(':')[1]]]
+            dictionary += [[i.split(' : ')[0], i.split(' : ')[1]]]
     return dictionary
     
 # ---------------------------------------------------------------------
@@ -132,11 +132,12 @@ def get_custom_commands() -> list:
     custom_commands = []
     with(open(path + '/support_files/custom_commands.txt', 'r', encoding='utf-8') as f):
         for i in f:
-            custom_commands += [[i.split(':')[0], i.split(':')[1].split(' ')]]
+            custom_commands += [[i.split(' : ')[0], i.split(' : ')[1].split(' ')]]
     return custom_commands
 
 aliases = get_aliases()
 custom_commands = get_custom_commands()
+dictionary = get_dectionary()
 
 def jarvis(text):
 
@@ -155,8 +156,8 @@ def jarvis(text):
         )
         
         for pair in dictionary:
-            if pair[0] == text.replace(' ', '').replace(',', '').replace('.', ''):
-                run(['wtype', pair[1], check=True)
+            if pair[0] == text.lower().replace(' ', '').replace(',', '').replace('.', ''):
+                run(['wtype', pair[1]], check=True)
                 speak(f'ввёл текст прикреплённый к {pair[0]} в словаре, сэр')
                 break
         else:
